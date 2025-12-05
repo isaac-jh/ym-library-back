@@ -9,8 +9,15 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 프로젝트 루트 디렉토리 경로
-BASE_DIR = Path(__file__).resolve().parent.parent
+# 현재 파일 위치 기준 디렉토리
+CURRENT_DIR = Path(__file__).resolve().parent
+
+# .env 파일 경로 탐색 (Docker와 로컬 환경 모두 지원)
+# 1. 현재 디렉토리 (Docker: /app/.env)
+# 2. 부모 디렉토리 (로컬: project_root/.env)
+ENV_FILE = CURRENT_DIR / ".env"
+if not ENV_FILE.exists():
+    ENV_FILE = CURRENT_DIR.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -32,7 +39,7 @@ class Settings(BaseSettings):
 
     # Pydantic v2 설정 방식
     model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
+        env_file=str(ENV_FILE) if ENV_FILE.exists() else None,
         env_file_encoding="utf-8",
         extra="ignore",  # .env에 정의되지 않은 변수 무시
     )

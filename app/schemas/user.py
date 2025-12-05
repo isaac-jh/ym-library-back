@@ -6,7 +6,7 @@ API 요청/응답을 위한 Pydantic 스키마 정의
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserBase(BaseModel):
@@ -32,10 +32,7 @@ class UserResponse(UserBase):
     deleted: bool = Field(..., description="삭제 여부")
     created_at: datetime = Field(..., description="생성 일시")
 
-    class Config:
-        """Pydantic 설정"""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserSimpleResponse(BaseModel):
@@ -48,10 +45,7 @@ class UserSimpleResponse(BaseModel):
     id: int = Field(..., description="고유 식별자")
     name: str = Field(..., description="사용자 이름")
 
-    class Config:
-        """Pydantic 설정"""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LoginRequest(BaseModel):

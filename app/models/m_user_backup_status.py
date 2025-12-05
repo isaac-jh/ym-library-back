@@ -44,12 +44,21 @@ class MUserBackupStatus(Base):
         Integer, ForeignKey("user.id"), nullable=False, comment="생성자 ID"
     )
 
-    # 관계 설정
+    # 관계 설정 - foreign_keys를 명시적으로 지정
     user = relationship(
-        "User", foreign_keys=[user_id], back_populates="backup_status_mappings"
+        "User",
+        foreign_keys=[user_id],
+        back_populates="backup_status_mappings",
     )
-    backup_status = relationship("BackupStatus", back_populates="user_mappings")
-    creator = relationship("User", foreign_keys=[created_by])
+    backup_status = relationship(
+        "BackupStatus",
+        back_populates="user_mappings",
+    )
+    creator = relationship(
+        "User",
+        foreign_keys=[created_by],
+        back_populates="created_mappings",
+    )
 
     def __repr__(self) -> str:
         """모델의 문자열 표현을 반환합니다."""

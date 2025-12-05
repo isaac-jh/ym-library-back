@@ -7,7 +7,7 @@ API 요청/응답을 위한 Pydantic 스키마 정의
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BackupStatusBase(BaseModel):
@@ -86,10 +86,7 @@ class BackupStatusResponse(BackupStatusBase):
     id: int = Field(..., description="고유 식별자")
     created_at: datetime = Field(..., description="생성 일시")
 
-    class Config:
-        """Pydantic 설정"""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BackupStatusListResponse(BaseModel):

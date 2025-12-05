@@ -38,8 +38,20 @@ class User(Base):
         DateTime, nullable=False, default=datetime.utcnow, comment="생성 일시"
     )
 
-    # 작업자 매핑 관계
-    backup_status_mappings = relationship("MUserBackupStatus", back_populates="user")
+    # 작업자 매핑 관계 (user_id 기준)
+    # MUserBackupStatus에 user_id와 created_by 두 개의 FK가 있으므로 명시적 지정 필요
+    backup_status_mappings = relationship(
+        "MUserBackupStatus",
+        foreign_keys="MUserBackupStatus.user_id",
+        back_populates="user",
+    )
+
+    # 내가 생성한 매핑 관계 (created_by 기준)
+    created_mappings = relationship(
+        "MUserBackupStatus",
+        foreign_keys="MUserBackupStatus.created_by",
+        back_populates="creator",
+    )
 
     def __repr__(self) -> str:
         """모델의 문자열 표현을 반환합니다."""

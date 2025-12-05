@@ -13,6 +13,11 @@ from sqlalchemy import text
 
 from config import get_settings
 from database import engine
+
+# 모든 모델을 import하여 SQLAlchemy가 관계를 인식하도록 함
+# 순서 중요: User -> BackupStatus -> MUserBackupStatus
+import models  # noqa: F401
+
 from routers import auth, backup_status, storage_catalog
 
 # 설정 로드
@@ -102,7 +107,7 @@ if __name__ == "__main__":
     """
     서버 직접 실행
 
-    python app/main.py 명령으로 서버를 실행할 수 있습니다.
+    python main.py 명령으로 서버를 실행할 수 있습니다.
     개발 환경에서는 --reload 옵션이 활성화됩니다.
     """
     uvicorn.run(

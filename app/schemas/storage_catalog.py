@@ -6,7 +6,7 @@ API 요청/응답을 위한 Pydantic 스키마 정의
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StorageCatalogBase(BaseModel):
@@ -61,8 +61,4 @@ class StorageCatalogResponse(StorageCatalogBase):
 
     id: int = Field(..., description="고유 식별자")
 
-    class Config:
-        """Pydantic 설정"""
-
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)

@@ -7,7 +7,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import desc
+from sqlalchemy import case, desc
 from sqlalchemy.orm import Session, aliased
 
 from database import get_db
@@ -39,13 +39,13 @@ def get_producers_for_backup(db: Session, backup_status_id: int) -> List[str]:
     Returns:
         List[str]: 작업자 이름 리스트
     """
-    mappings = (
-        db.query(MUserBackupStatus, User.name)
-        .join(User, MUserBackupStatus.user_id == User.id)
+    results = (
+        db.query(User.name)
+        .join(MUserBackupStatus, MUserBackupStatus.user_id == User.id)
         .filter(MUserBackupStatus.backup_status_id == backup_status_id)
         .all()
     )
-    return [mapping.name for mapping in mappings]
+    return [row[0] for row in results]
 
 
 def sync_producers(
@@ -125,8 +125,11 @@ def get_backup_statuses(
     if event_name:
         query = query.filter(BackupStatus.event_name.contains(event_name))
 
-    # displayed_date 기준 최신순 정렬 (NULL은 마지막에)
-    query = query.order_by(desc(BackupStatus.displayed_date).nullslast())
+    # displayed_date 기준 최신순 정렬 (NULL은 마지막에 - MySQL 호환)
+    query = query.order_by(
+        case((BackupStatus.displayed_date.is_(None), 1), else_=0),
+        desc(BackupStatus.displayed_date),
+    )
 
     results = query.offset(skip).limit(limit).all()
 

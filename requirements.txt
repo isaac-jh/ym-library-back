@@ -1,0 +1,19 @@
+# FastAPI 프레임워크
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# 데이터베이스
+sqlalchemy>=2.0.36
+pymysql>=1.1.1
+cryptography>=44.0.0
+
+# 환경 변수 관리
+python-dotenv>=1.0.1
+
+# 유효성 검사 (Python 3.13 호환)
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# 개발 도구
+pytest>=8.3.0
+httpx>=0.28.0

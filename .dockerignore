@@ -4,20 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
 # Virtual Environment
@@ -25,17 +12,14 @@ venv/
 ENV/
 env/
 .venv/
+ym-library-back/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Environment Variables
-.env
-.env.local
-.env.*.local
+.cursor/
 
 # Testing
 .pytest_cache/
@@ -45,3 +29,17 @@ htmlcov/
 # Logs
 *.log
 logs/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+README.md
+*.md
+

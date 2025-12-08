@@ -1,8 +1,10 @@
 """
-인증 API 라우터
+인증 및 사용자 API 라우터
 
-로그인 엔드포인트를 제공합니다.
+로그인 및 사용자 조회 엔드포인트를 제공합니다.
 """
+
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -50,3 +52,14 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         )
 
     return user
+
+
+@router.get("/users", response_model=List[UserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    """
+    모든 사용자 목록 조회
+
+    삭제되지 않은 모든 사용자 정보를 반환합니다. (비밀번호 제외)
+    """
+    users = db.query(User).filter(User.deleted == False).all()
+    return users

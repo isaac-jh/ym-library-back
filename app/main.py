@@ -61,6 +61,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    # trailing slash로 인한 307 리다이렉트 방지
+    redirect_slashes=False,
 )
 
 # CORS 미들웨어 설정
@@ -115,4 +117,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.debug,
+        proxy_headers=True,  # 프록시 헤더 인식 (X-Forwarded-Proto 등)
+        forwarded_allow_ips="*",  # 모든 프록시 IP 허용
     )

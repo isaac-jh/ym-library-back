@@ -24,10 +24,10 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[StorageCatalogResponse])
+@router.get("", response_model=List[StorageCatalogResponse])
 def get_storage_catalogs(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
-    limit: int = Query(100, ge=1, le=1000, description="조회할 항목 수"),
+    limit: int = Query(100, ge=1, le=10000, description="조회할 항목 수"),
     storage: Optional[str] = Query(None, description="저장소 필터"),
     category: Optional[str] = Query(None, description="카테고리 필터"),
     year: Optional[int] = Query(None, description="연도 필터"),
@@ -71,7 +71,7 @@ def get_storage_catalog(catalog_id: int, db: Session = Depends(get_db)):
 
 
 @router.post(
-    "/", response_model=StorageCatalogResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=StorageCatalogResponse, status_code=status.HTTP_201_CREATED
 )
 def create_storage_catalog(
     catalog_data: StorageCatalogCreate, db: Session = Depends(get_db)

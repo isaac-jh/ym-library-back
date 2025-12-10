@@ -77,10 +77,10 @@ def sync_producers(
         db.add(mapping)
 
 
-@router.get("/", response_model=List[BackupStatusListResponse])
+@router.get("", response_model=List[BackupStatusListResponse])
 def get_backup_statuses(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
-    limit: int = Query(100, ge=1, le=1000, description="조회할 항목 수"),
+    limit: int = Query(100, ge=1, le=10000, description="조회할 항목 수"),
     event_name: Optional[str] = Query(None, description="이벤트명 필터"),
     db: Session = Depends(get_db),
 ):
@@ -189,7 +189,7 @@ def get_backup_status(backup_id: int, db: Session = Depends(get_db)):
 
 
 @router.post(
-    "/", response_model=BackupStatusResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=BackupStatusResponse, status_code=status.HTTP_201_CREATED
 )
 def create_backup_status(
     backup_data: BackupStatusCreate, db: Session = Depends(get_db)

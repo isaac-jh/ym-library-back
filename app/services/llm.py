@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 # 챗봇 페르소나. 사용자 룰("한글로 대답해줘") 반영.
+#
+# 주의: ``system_instruction`` 파라미터로 직접 넘기지 않는다. Gemma 계열
+# (예: gemma-4-31b-it) 모델은 system role 을 native 지원하지 않아 Google AI
+# Studio API 가 500 INTERNAL 을 반환한다. 대신 :func:`_to_contents` 에서
+# 첫 user/model 페어로 변환해 prepend 한다. Gemini 모델도 이 방식을 그대로
+# 받아들이므로 **모델 교체 시에도 코드 변경이 필요 없다.**
 SYSTEM_INSTRUCTION = """
 당신은 'YM Library' 영상 카탈로그 검색 어시스턴트입니다.
 사용자는 카탈로그 페이지에서 영상의 백업 위치, 또는 특정 장면이 담긴
@@ -37,6 +43,10 @@ SYSTEM_INSTRUCTION = """
    표기해 사용자가 바로 찾아갈 수 있게 합니다.
 6. 친절하고 간결하게, 불필요한 사족 없이 답하세요.
 """.strip()
+
+# 시스템 지시 다음에 모델이 인사한 것처럼 보여 주는 가상 응답.
+# user/model 페어를 만들어 두면 이후 실제 user 메시지가 자연스럽게 이어진다.
+_SYSTEM_ACK = "네, YM Library 영상 카탈로그 검색 도우미입니다. 무엇을 찾아드릴까요?"
 
 
 @lru_cache
@@ -59,9 +69,22 @@ def _to_contents(
 ) -> list[types.Content]:
     """프론트의 `{role, content}` 메시지 리스트를 SDK contents 로 변환.
 
-    role 은 ``user`` 또는 ``model`` 두 가지만 허용한다(Gemma 규약).
+    Gemma 호환을 위해 **시스템 지시를 첫 user/model 페어로 변환**해
+    가장 앞에 prepend 한다. role 은 ``user`` 또는 ``model`` 두 가지만
+    허용한다(Gemma/Gemini 공통 규약).
     """
-    contents: list[types.Content] = []
+    # 시스템 지시를 user 가 말한 것처럼, 모델이 답한 것처럼 페어로 prepend.
+    # 이 방식은 system role 미지원인 Gemma 에서도 500 없이 동작한다.
+    contents: list[types.Content] = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=SYSTEM_INSTRUCTION)],
+        ),
+        types.Content(
+            role="model",
+            parts=[types.Part.from_text(text=_SYSTEM_ACK)],
+        ),
+    ]
     for turn in history or []:
         role = (turn.get("role") or "user").lower()
         if role not in ("user", "model"):
@@ -97,8 +120,9 @@ def chat_once(
     client = get_client()
     contents = _to_contents(message, history)
 
+    # system_instruction 은 의도적으로 사용하지 않는다 (Gemma 호환 — 모듈
+    # docstring 참조). 대신 _to_contents 가 첫 user/model 페어로 변환해 둠.
     config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_INSTRUCTION,
         tools=TOOL_FUNCTIONS,
         temperature=0.2,
         # automatic_function_calling 은 기본 활성. 안전을 위해 호출 횟수

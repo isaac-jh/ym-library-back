@@ -66,14 +66,24 @@ app = FastAPI(
 )
 
 # CORS 미들웨어 설정
-# TODO: 프로덕션 환경에서는 허용 오리진을 제한해야 합니다.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 개발 환경에서만 사용
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+#
+# 주의: starlette 0.41+ 부터 `allow_origins=["*"]` 와 `allow_credentials=True`
+# 조합이 명세에 맞게 거부된다. 그 결과 응답에 `Access-Control-Allow-Origin`
+# 헤더가 누락되어 브라우저가 차단한다. 운영/개발 모두 **명시 도메인**을
+# 환경변수(CORS_ALLOWED_ORIGINS) 로 나열한다.
+#
+# preview 배포(예: vercel) 처럼 와일드카드가 필요하면
+# CORS_ALLOWED_ORIGIN_REGEX 에 정규식을 지정한다.
+_cors_kwargs: dict = {
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "allow_origins": settings.cors_origin_list,
+}
+if settings.cors_allowed_origin_regex:
+    _cors_kwargs["allow_origin_regex"] = settings.cors_allowed_origin_regex
+
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 # 라우터 등록
 app.include_router(auth.router, prefix="/api/v1")

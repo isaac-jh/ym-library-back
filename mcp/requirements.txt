@@ -1,0 +1,25 @@
+# YM Library MCP 서버 의존성
+# 루트 requirements.txt 와 별도로 관리해서, MCP 만 단독 배포할 수 있게 함.
+
+# ----- MCP 서버 -----
+mcp[cli]>=1.6.0
+
+# ----- LLM (Google AI Studio - Gemma 4) -----
+google-genai>=1.70.0
+
+# ----- HTTP 챗봇 API -----
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# ----- DB / 설정 -----
+sqlalchemy>=2.0.36
+pymysql>=1.1.1
+cryptography>=44.0.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.1
+
+# ----- 테스트 -----
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+httpx>=0.28.0

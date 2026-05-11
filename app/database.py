@@ -4,8 +4,11 @@
 SQLAlchemy를 사용하여 MySQL 데이터베이스 연결을 설정합니다.
 """
 
+from contextlib import contextmanager
+from typing import Iterator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from config import get_settings
 
@@ -39,5 +42,27 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    finally:
+        db.close()
+
+
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """
+    `with` 문에서 사용 가능한 세션 컨텍스트 매니저.
+
+    FastAPI 라우터 외부(예: 챗봇 LLM 도구 함수, MCP stdio 서버)에서
+    일회성 DB 세션이 필요할 때 사용합니다. 예외 발생 시 롤백,
+    정상 종료 시 자동 close 됩니다.
+
+    Yields:
+        Session: SQLAlchemy 데이터베이스 세션
+    """
+    db: Session = SessionLocal()
+    try:
+        yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

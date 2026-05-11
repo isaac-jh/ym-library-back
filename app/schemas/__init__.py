@@ -10,6 +10,12 @@ from schemas.backup_status import (
     BackupStatusResponse,
     BackupStatusUpdate,
 )
+from schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    ChatTurn,
+    ToolCallRecord,
+)
 from schemas.storage_catalog import (
     StorageCatalogCreate,
     StorageCatalogResponse,
@@ -35,4 +41,9 @@ __all__ = [
     "LoginRequest",
     "UserResponse",
     "UserSimpleResponse",
+    # Chat
+    "ChatRequest",
+    "ChatResponse",
+    "ChatTurn",
+    "ToolCallRecord",
 ]

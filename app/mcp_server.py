@@ -1,4 +1,4 @@
-"""FastMCP 기반 MCP stdio 서버.
+"""FastMCP 기반 MCP stdio 서버 (단독 entrypoint).
 
 Claude Desktop / Cursor / Continue 등 MCP 클라이언트에서 다음과 같이 등록하여
 사용할 수 있다(예시는 Claude Desktop ``claude_desktop_config.json``).
@@ -8,14 +8,21 @@ Claude Desktop / Cursor / Continue 등 MCP 클라이언트에서 다음과 같�
     {
       "mcpServers": {
         "ym-library": {
-          "command": "python",
-          "args": ["/abs/path/to/ym-library-back/mcp/mcp_server.py"]
+          "command": "/abs/path/to/python",
+          "args": ["/abs/path/to/ym-library-back/app/mcp_server.py"],
+          "env": {
+            "PYTHONPATH": "/abs/path/to/ym-library-back/app",
+            "DATABASE_URL": "mysql+pymysql://user:pw@host:3306/ym"
+          }
         }
       }
     }
 
 stdio 트랜스포트는 stdout 을 프로토콜 채널로 점유하므로, 모든 로그는
 **stderr** 로 출력해야 한다.
+
+도구 구현은 :mod:`services.catalog_search` 를 그대로 재사용하며,
+HTTP 챗봇과 정확히 같은 비즈니스 로직 위에서 동작한다.
 """
 
 from __future__ import annotations
@@ -27,7 +34,7 @@ from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 
 from config import get_settings
-from tools import (
+from services.catalog_search import (
     find_video_backup_location as _find_video_backup_location,
     list_recent_activities as _list_recent_activities,
     list_storages as _list_storages,

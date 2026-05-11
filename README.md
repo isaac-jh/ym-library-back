@@ -6,6 +6,9 @@
 
 - **저장소 카탈로그 관리**: 미디어 파일의 저장 위치와 활동 분류 관리
 - **백업 상태 추적**: 미디어 파일의 백업 진행 상태 추적
+- **카탈로그 챗봇 + MCP 서버**: 자연어로 영상 백업 위치/장면을 검색.
+  Google AI Studio 의 Gemma 4 31B 사용. 자세한 내용은
+  [`docs/mcp.md`](docs/mcp.md) 참조.
 
 ## 기술 스택
 
@@ -107,6 +110,15 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | PUT | `/{id}` | 백업 상태 수정 |
 | PATCH | `/{id}/mark-complete` | 백업 완료 표시 |
 | DELETE | `/{id}` | 백업 상태 삭제 |
+
+### 카탈로그 챗봇 (`/api/v1/chat`)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/` | 챗봇 한 턴 처리 (자연어 → 검색 → 한국어 답변) |
+| GET | `/health` | 챗봇 헬스 체크 (사용 모델 ID 확인) |
+
+상세 가이드: [`docs/mcp.md`](docs/mcp.md)
 
 ## 개발
 

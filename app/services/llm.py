@@ -1,7 +1,8 @@
 """Google AI Studio (Gemma 4) 호출 래퍼.
 
 `google-genai` SDK 를 통해 **automatic function calling** 모드로
-질의를 처리한다. 도구 함수들은 :data:`tools.TOOL_FUNCTIONS` 에서 가져온다.
+챗봇 한 턴을 처리한다. 도구 함수들은
+:data:`services.catalog_search.TOOL_FUNCTIONS` 에서 가져온다.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from google import genai
 from google.genai import types
 
 from config import get_settings
-from tools import TOOL_FUNCTIONS
+from services.catalog_search import TOOL_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def get_client() -> genai.Client:
     settings = get_settings()
     if not settings.google_api_key:
         raise RuntimeError(
-            "GOOGLE_API_KEY 가 설정되지 않았습니다. mcp/.env 를 확인하세요."
+            "GOOGLE_API_KEY 가 설정되지 않았습니다. .env 를 확인하세요."
         )
     return genai.Client(api_key=settings.google_api_key)
 

@@ -18,7 +18,7 @@ from database import engine
 # 순서 중요: User -> BackupStatus -> MUserBackupStatus
 import models  # noqa: F401
 
-from routers import auth, backup_status, storage_catalog
+from routers import auth, backup_status, chat, storage_catalog
 
 # 설정 로드
 settings = get_settings()
@@ -79,6 +79,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(storage_catalog.router, prefix="/api/v1")
 app.include_router(backup_status.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 
 @app.get("/")

@@ -31,11 +31,19 @@ class Settings(BaseSettings):
         database_url: MySQL 데이터베이스 연결 URL
         app_env: 애플리케이션 환경 (development, production, test)
         debug: 디버그 모드 활성화 여부
+        google_api_key: Google AI Studio API Key (Gemma 호출용)
+        gemma_model: 사용할 Gemma 모델 ID (기본: gemma-4-31b-it)
+        mcp_server_name: MCP stdio 서버 표시 이름
     """
 
     database_url: str = "mysql+pymysql://root:password@localhost:3306/ym"
     app_env: str = "development"
     debug: bool = True
+
+    # ----- 카탈로그 챗봇 / MCP -----
+    google_api_key: str = ""
+    gemma_model: str = "gemma-4-31b-it"
+    mcp_server_name: str = "ym-library-mcp"
 
     # Pydantic v2 설정 방식
     model_config = SettingsConfigDict(

@@ -1,8 +1,11 @@
-"""챗봇/MCP 가 호출하는 검색 도구 구현체.
+"""카탈로그/백업 검색 비즈니스 로직.
 
-비즈니스 로직만 담고, MCP/HTTP 인터페이스는 별도 모듈에서 감싼다.
-모든 함수는 **순수 함수** 형태로 dict 또는 dict 리스트를 반환하여
-LLM 의 function calling 결과로 그대로 직렬화될 수 있다.
+챗봇(LLM function calling) 과 MCP stdio 서버 양쪽에서 호출하는
+순수 함수 모음. 모든 함수는 dict 또는 dict 리스트를 반환해 LLM 응답으로
+직접 직렬화될 수 있다.
+
+세션 관리는 함수 내부에서 :func:`database.session_scope` 로 자동 처리하므로
+호출자는 DB 세션을 신경 쓸 필요가 없다(LLM 자동 함수 호출과의 호환성).
 """
 
 from __future__ import annotations
@@ -11,7 +14,9 @@ from typing import Any, Optional
 
 from sqlalchemy import or_
 
-from db import BackupStatus, StorageCatalog, session_scope
+from database import session_scope
+from models.backup_status import BackupStatus
+from models.storage_catalog import StorageCatalog
 
 
 # LLM 응답 폭주를 막기 위한 하드 캡 (가이드라인: 25k chars 미만).
@@ -228,7 +233,7 @@ def list_recent_activities(limit: Optional[int] = None) -> dict[str, Any]:
 
 
 # google-genai 의 automatic function calling 에 그대로 넘길 수 있도록
-# "도구 함수" 들을 묶어둔다. 이름은 함수명 = MCP tool name = LLM tool name.
+# "도구 함수" 들을 묶어둔다. 함수명이 곧 LLM tool name = MCP tool name.
 TOOL_FUNCTIONS = [
     find_video_backup_location,
     search_by_description,

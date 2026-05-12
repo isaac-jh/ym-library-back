@@ -56,9 +56,9 @@ mcp = FastMCP(_settings.mcp_server_name)
 
 @mcp.tool()
 def find_video_backup_location(
-    keyword: str,
+    keyword: Optional[str | int | float] = None,
     year: Optional[int] = None,
-    category: Optional[str] = None,
+    category: Optional[str | int | float] = None,
     limit: Optional[int] = None,
 ) -> dict[str, Any]:
     """활동명/별칭 키워드로 영상 백업 위치를 찾는다.
@@ -75,14 +75,14 @@ def find_video_backup_location(
 
 @mcp.tool()
 def search_by_description(
-    keyword: str,
+    keyword: Optional[str | int | float] = None,
     limit: Optional[int] = None,
 ) -> dict[str, Any]:
-    """description 컬럼에서 특정 장면/소스가 들어있는 영상을 검색한다.
+    """``storage_catalog.description`` 에서 장면/소스 키워드를 검색한다.
 
-    예: ``keyword="손을 들고 찬양"`` 으로 호출하면 카탈로그/백업의 description
-    필드에 해당 키워드가 포함된 영상을 찾고, 백업 결과에는 매칭되는
-    카탈로그 위치(`location_hint`)를 함께 첨부해 돌려준다.
+    예: ``keyword="손을 들고 찬양"`` 이면 해당 문구가 description 에 포함된
+    카탈로그 행을 돌려준다. 응답의 ``backup_matches`` 는 API 호환용으로
+    항상 빈 배열이다.
     """
     logger.info("search_by_description keyword=%r", keyword)
     return _search_by_description(keyword=keyword, limit=limit)

@@ -12,6 +12,7 @@ from functools import lru_cache
 from typing import Any, Optional
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from config import get_settings
@@ -22,11 +23,10 @@ logger = logging.getLogger(__name__)
 
 # 챗봇 페르소나. 사용자 룰("한글로 대답해줘") 반영.
 #
-# 주의: ``system_instruction`` 파라미터로 직접 넘기지 않는다. Gemma 계열
-# (예: gemma-4-31b-it) 모델은 system role 을 native 지원하지 않아 Google AI
-# Studio API 가 500 INTERNAL 을 반환한다. 대신 :func:`_to_contents` 에서
-# 첫 user/model 페어로 변환해 prepend 한다. Gemini 모델도 이 방식을 그대로
-# 받아들이므로 **모델 교체 시에도 코드 변경이 필요 없다.**
+# 주의: ``system_instruction`` API 필드는 Gemma 에서 500 INTERNAL 이 난다.
+# 가짜 ``model`` 턴을 앞에 붙이는 방식도 Gemma+도구 조합에서 500 이 재현됐다.
+# 운영에서 검증된 패턴은 **도구만 있고 단일 user 발화**([3] 성공)이므로,
+# 시스템 지시는 **마지막 user 메시지 본문에만 인라인**으로 붙인다.
 SYSTEM_INSTRUCTION = """
 당신은 'YM Library' 영상 카탈로그 검색 어시스턴트입니다.
 사용자는 카탈로그 페이지에서 영상의 백업 위치, 또는 특정 장면이 담긴
@@ -34,19 +34,40 @@ SYSTEM_INSTRUCTION = """
 
 규칙:
 1. 답변은 항상 **한국어**로 합니다.
-2. 도구(tools) 결과만 근거로 답합니다. 결과가 비어있으면 솔직히 모른다고
+2. 도구(tools) 결과만 근거로 답합니다. ``lookup_failed`` 가 true 이면
+   조회에 실패한 것이니 재시도를 안내하고, 과장된 '시스템 장애' 표현은
+   피합니다. 결과가 비어있고 실패도 아니면 솔직히 모른다고 말하고,
    말하고, 더 구체적인 키워드를 요청합니다. 절대로 추측해서 만들어내지 마세요.
-3. 영상 위치 질문은 `find_video_backup_location` 을, 장면/소스 질문은
-   `search_by_description` 을 우선 사용하세요.
+3. 도구 선택(매우 중요) — **둘 다 ``storage_catalog`` 테이블만** 본다.
+   - ``find_video_backup_location``: ``activity_name`` 과 ``description`` 에
+     LIKE 검색. **연도·카테고리 필터**를 줄 수 있다.
+   - ``search_by_description``: **``description`` 컬럼만** LIKE 검색.
+     장면·소스 같은 **설명 문구** 위주 질문이면 이 도구를 쓴다.
+   - 한 질문에 대해 두 도구를 **연달아** 호출해도 된다. 첫 도구가 빈 결과면
+     다른 컬럼/검색 방식을 의심하고 두 번째를 호출한다.
 4. 결과가 여러 건이면 **연도/저장소별로 묶어** 항목 형태로 정리합니다.
 5. 답변에는 storage(저장소), year, activity_name 또는 name 을 함께
    표기해 사용자가 바로 찾아갈 수 있게 합니다.
 6. 친절하고 간결하게, 불필요한 사족 없이 답하세요.
 """.strip()
 
-# 시스템 지시 다음에 모델이 인사한 것처럼 보여 주는 가상 응답.
-# user/model 페어를 만들어 두면 이후 실제 user 메시지가 자연스럽게 이어진다.
-_SYSTEM_ACK = "네, YM Library 영상 카탈로그 검색 도우미입니다. 무엇을 찾아드릴까요?"
+def _model_is_gemma(model_id: str) -> bool:
+    """Google AI Studio 모델 ID 가 Gemma 계열인지 판별한다.
+
+    Gemma 는 ``system_instruction``·긴 인라인 시스템·가짜 model 턴 등과
+    조합될 때 API 가 500 INTERNAL 을 내는 사례가 있어, 호출 형태를 분기한다.
+    """
+    return "gemma" in (model_id or "").lower()
+
+
+# Gemma 전용: 운영에서 ``tools`` 만 있고 짧은 user 한 줄일 때만 성공했으므로
+# 시스템 문구는 **짧은 한 블록**으로만 붙인다. (긴 SYSTEM_INSTRUCTION + 도구 → 500)
+_GEMMA_COMPACT_HINT = (
+    "한국어로 답해. 도구만 사용(둘 다 storage_catalog): "
+    "활동명·연도 필터는 find_video_backup_location, "
+    "장면 설명 키워드는 search_by_description(description만). "
+    "결과 없으면 모른다고 해.\n\n"
+)
 
 
 @lru_cache
@@ -66,37 +87,41 @@ def get_client() -> genai.Client:
 def _to_contents(
     message: str,
     history: Optional[list[dict[str, str]]] = None,
+    *,
+    model_id: str,
+    gemma_minimal: bool = False,
 ) -> list[types.Content]:
     """프론트의 `{role, content}` 메시지 리스트를 SDK contents 로 변환.
 
-    Gemma 호환을 위해 **시스템 지시를 첫 user/model 페어로 변환**해
-    가장 앞에 prepend 한다. role 은 ``user`` 또는 ``model`` 두 가지만
-    허용한다(Gemma/Gemini 공통 규약).
+    - **Gemini**: 시스템 문구는 ``GenerateContentConfig.system_instruction`` 으로
+      넘기므로, 여기서는 ``history`` + 마지막 사용자 질문만 둔다.
+    - **Gemma**: ``system_instruction`` 미지원·긴 인라인+도구 시 500 이므로
+      마지막 user 턴에 ``_GEMMA_COMPACT_HINT`` 만 짧게 붙인다.
+      ``gemma_minimal=True`` 이면 히스토리 없이 **질문 원문만** (폴백 재시도).
+
+    role 은 ``user`` 또는 ``model`` 만 허용한다.
     """
-    # 시스템 지시를 user 가 말한 것처럼, 모델이 답한 것처럼 페어로 prepend.
-    # 이 방식은 system role 미지원인 Gemma 에서도 500 없이 동작한다.
-    contents: list[types.Content] = [
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=SYSTEM_INSTRUCTION)],
-        ),
-        types.Content(
-            role="model",
-            parts=[types.Part.from_text(text=_SYSTEM_ACK)],
-        ),
-    ]
-    for turn in history or []:
-        role = (turn.get("role") or "user").lower()
-        if role not in ("user", "model"):
-            role = "user"
-        text = turn.get("content") or ""
-        if not text:
-            continue
-        contents.append(
-            types.Content(role=role, parts=[types.Part.from_text(text=text)])
-        )
+    contents: list[types.Content] = []
+    if not gemma_minimal:
+        for turn in history or []:
+            role = (turn.get("role") or "user").lower()
+            if role not in ("user", "model"):
+                role = "user"
+            text = turn.get("content") or ""
+            if not text:
+                continue
+            contents.append(
+                types.Content(role=role, parts=[types.Part.from_text(text=text)])
+            )
+
+    stripped = (message or "").strip()
+    if _model_is_gemma(model_id):
+        final_user_text = stripped if gemma_minimal else f"{_GEMMA_COMPACT_HINT}{stripped}"
+    else:
+        final_user_text = stripped
+
     contents.append(
-        types.Content(role="user", parts=[types.Part.from_text(text=message)])
+        types.Content(role="user", parts=[types.Part.from_text(text=final_user_text)])
     )
     return contents
 
@@ -118,25 +143,44 @@ def chat_once(
     """
     settings = get_settings()
     client = get_client()
-    contents = _to_contents(message, history)
+    model_id = settings.gemma_model
 
-    # system_instruction 은 의도적으로 사용하지 않는다 (Gemma 호환 — 모듈
-    # docstring 참조). 대신 _to_contents 가 첫 user/model 페어로 변환해 둠.
-    config = types.GenerateContentConfig(
-        tools=TOOL_FUNCTIONS,
-        temperature=0.2,
-        # automatic_function_calling 은 기본 활성. 안전을 위해 호출 횟수
-        # 상한만 보수적으로 설정.
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+    # Gemma: system_instruction 미사용. Gemini: API 가 지원하므로 사용.
+    config_kwargs: dict[str, Any] = {
+        "tools": TOOL_FUNCTIONS,
+        "temperature": 0.2,
+        "automatic_function_calling": types.AutomaticFunctionCallingConfig(
             maximum_remote_calls=6,
         ),
-    )
+    }
+    if not _model_is_gemma(model_id):
+        config_kwargs["system_instruction"] = SYSTEM_INSTRUCTION
 
-    response = client.models.generate_content(
-        model=settings.gemma_model,
-        contents=contents,
-        config=config,
-    )
+    config = types.GenerateContentConfig(**config_kwargs)
+
+    contents = _to_contents(message, history, model_id=model_id)
+
+    def _call(contents_arg: list[types.Content]) -> Any:
+        return client.models.generate_content(
+            model=model_id,
+            contents=contents_arg,
+            config=config,
+        )
+
+    try:
+        response = _call(contents)
+    except genai_errors.ServerError as exc:
+        # Gemma: 긴 대화+도구 조합에서 간헐적 500 → 히스토리 제거·질문만 재시도.
+        if _model_is_gemma(model_id):
+            logger.warning(
+                "Gemma generate_content ServerError, retry minimal: %s", exc
+            )
+            minimal = _to_contents(
+                message, history, model_id=model_id, gemma_minimal=True
+            )
+            response = _call(minimal)
+        else:
+            raise
 
     reply_text = (response.text or "").strip()
 

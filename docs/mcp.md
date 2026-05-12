@@ -2,7 +2,7 @@
 
 YM Library 백엔드에 통합된 **카탈로그 챗봇 + MCP 서버** 가이드.
 
-- **버전**: v1.1.0 (2026-05-11) — `mcp/` 모듈을 `app/` 에 흡수, 단일 서버로 통합
+- **버전**: v1.1.1 (2026-05-11) — 챗봇/MCP 검색 도구는 `storage_catalog` 만 조회
 - **이전 분리 버전(v1.0.0)** PRD 는 git history 의 `mcp/PRD.md` 에서 확인 가능
 
 ---
@@ -49,10 +49,10 @@ app/services/llm.py  ──────────────► Gemma 4 31B (
 app/services/catalog_search.py
     │  session_scope() → SessionLocal()
     ▼
-app/models/{StorageCatalog, BackupStatus}
+app/models/StorageCatalog   (챗/MCP 도구는 이 테이블만 조회)
     │
     ▼
-MySQL
+MySQL  (``backup_status`` 는 REST 백업 API 전용, 챗 도구와 무관)
 
 # 별도 entrypoint
 Claude Desktop / Cursor

@@ -37,29 +37,37 @@ def test_find_empty_keyword() -> None:
     assert result == {"keyword": "", "count": 0, "items": []}
 
 
-def test_search_by_description_hits_both_tables() -> None:
-    """description 키워드가 카탈로그/백업 양쪽에 모두 매칭된다."""
+def test_find_keyword_none_is_empty() -> None:
+    """AFC 가 keyword 를 생략하거나 null 로 줄 때도 예외 없이 빈 결과."""
+    result = catalog_search.find_video_backup_location(keyword=None)
+    assert result == {"keyword": "", "count": 0, "items": []}
+
+
+def test_find_keyword_int_coerced_to_str() -> None:
+    """숫자만 넘어와도 str 로 정규화되어 AFC 인자 검사와 동작이 맞는다."""
+    result = catalog_search.find_video_backup_location(keyword=2024)
+    assert result["keyword"] == "2024"
+
+
+def test_search_by_description_hits_catalog_description() -> None:
+    """``storage_catalog.description`` 에서만 매칭한다."""
     result = catalog_search.search_by_description(keyword="손을 들고 찬양")
-    # 카탈로그: '회중이 손을 들고 찬양하는 장면 다수 포함'
+    # 시드: CLOUD 행 description '회중이 손을 들고 찬양하는 장면 다수 포함'
     assert any(item["storage"] == "CLOUD" for item in result["catalog_matches"])
+    assert result["backup_matches"] == []
 
 
-def test_search_by_description_excludes_deleted() -> None:
-    """soft-delete 된 backup 은 결과에 포함되면 안 된다."""
+def test_search_by_description_backup_matches_always_empty() -> None:
+    """백업 테이블은 조회하지 않으므로 backup_matches 는 항상 빈 배열이다."""
     result = catalog_search.search_by_description(keyword="손을 들고 찬양")
-    names = {entry["name"] for entry in result["backup_matches"]}
-    assert "과거 영상" not in names
+    assert result["backup_matches"] == []
 
 
-def test_search_by_description_attaches_location_hint() -> None:
-    """backup 매칭 결과에는 location_hint 가 함께 붙어야 한다."""
-    result = catalog_search.search_by_description(keyword="손 든 회중")
-    assert len(result["backup_matches"]) >= 1
-    entry = result["backup_matches"][0]
-    assert "location_hint" in entry
-    # event_name '청년부 임직예배' 로부터 'CLOUD' 카탈로그가 매칭되어야 한다.
-    if entry["location_hint"] is not None:
-        assert entry["location_hint"]["storage"] == "CLOUD"
+def test_search_by_description_other_catalog_row() -> None:
+    """다른 카탈로그 행의 description 도 검색된다."""
+    result = catalog_search.search_by_description(keyword="야외 찬양")
+    assert any(item["storage"] == "NAS-C" for item in result["catalog_matches"])
+    assert result["backup_matches"] == []
 
 
 def test_list_storages() -> None:

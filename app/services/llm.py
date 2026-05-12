@@ -36,11 +36,13 @@ SYSTEM_INSTRUCTION = """
 1. 답변은 항상 **한국어**로 합니다.
 2. 도구(tools) 결과만 근거로 답합니다. ``lookup_failed`` 가 true 이면
    조회에 실패한 것이니 재시도를 안내하고, 과장된 '시스템 장애' 표현은
-   피합니다. 결과가 비어있고 실패도 아니면 솔직히 모른다고 말하고,
-   말하고, 더 구체적인 키워드를 요청합니다. 절대로 추측해서 만들어내지 마세요.
+   피합니다. 결과가 비어 있고 실패도 아니면 솔직히 모른다고 말하고,
+   더 구체적인 키워드를 요청합니다. 절대로 추측해서 만들어내지 마세요.
 3. 도구 선택(매우 중요) — **둘 다 ``storage_catalog`` 테이블만** 본다.
    - ``find_video_backup_location``: ``activity_name`` 과 ``description`` 에
-     LIKE 검색. **연도·카테고리 필터**를 줄 수 있다.
+     LIKE 검색. **연도·카테고리 필터는 선택**이다. JSON ``null`` 이거나
+     인자를 생략하면 해당 조건 없이(전체 연도·전체 카테고리) 검색한다.
+     ``limit`` 도 선택이며 생략 시 기본값을 쓴다.
    - ``search_by_description``: **``description`` 컬럼만** LIKE 검색.
      장면·소스 같은 **설명 문구** 위주 질문이면 이 도구를 쓴다.
    - 한 질문에 대해 두 도구를 **연달아** 호출해도 된다. 첫 도구가 빈 결과면
@@ -64,7 +66,7 @@ def _model_is_gemma(model_id: str) -> bool:
 # 시스템 문구는 **짧은 한 블록**으로만 붙인다. (긴 SYSTEM_INSTRUCTION + 도구 → 500)
 _GEMMA_COMPACT_HINT = (
     "한국어로 답해. 도구만 사용(둘 다 storage_catalog): "
-    "활동명·연도 필터는 find_video_backup_location, "
+    "활동명 검색은 find_video_backup_location(year/category는 null 가능), "
     "장면 설명 키워드는 search_by_description(description만). "
     "결과 없으면 모른다고 해.\n\n"
 )

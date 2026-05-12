@@ -49,6 +49,37 @@ def test_find_keyword_int_coerced_to_str() -> None:
     assert result["keyword"] == "2024"
 
 
+def test_find_year_category_null_same_as_omit() -> None:
+    """JSON null 과 동일한 ``None`` 이면 연도·카테고리 필터를 쓰지 않는다."""
+    baseline = catalog_search.find_video_backup_location(keyword="가족초청예배")
+    explicit = catalog_search.find_video_backup_location(
+        keyword="가족초청예배",
+        year=None,
+        category=None,
+        limit=20,
+    )
+    assert explicit.get("lookup_failed") is not True
+    assert baseline["count"] == explicit["count"]
+
+
+def test_genai_afc_invokes_with_json_null_args() -> None:
+    """google-genai AFC 인자 변환기가 ``year``/``category`` null 과 함께 호출 가능."""
+    from google.genai import _extra_utils
+
+    args = {
+        "keyword": "가초예",
+        "year": None,
+        "category": None,
+        "limit": 20,
+    }
+    out = _extra_utils.invoke_function_from_dict_args(
+        args, catalog_search.find_video_backup_location
+    )
+    assert isinstance(out, dict)
+    assert out.get("lookup_failed") is not True
+    assert out.get("count", 0) >= 1
+
+
 def test_search_by_description_hits_catalog_description() -> None:
     """``storage_catalog.description`` 에서만 매칭한다."""
     result = catalog_search.search_by_description(keyword="손을 들고 찬양")

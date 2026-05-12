@@ -25,8 +25,6 @@ stdio 트랜스포트는 stdout 을 프로토콜 채널로 점유하므로, 모�
 HTTP 챗봇과 정확히 같은 비즈니스 로직 위에서 동작한다.
 """
 
-from __future__ import annotations
-
 import logging
 import sys
 from typing import Any, Optional
@@ -57,13 +55,14 @@ mcp = FastMCP(_settings.mcp_server_name)
 @mcp.tool()
 def find_video_backup_location(
     keyword: Optional[str | int | float] = None,
-    year: Optional[int] = None,
+    year: Optional[str | int | float] = None,
     category: Optional[str | int | float] = None,
-    limit: Optional[int] = None,
+    limit: Optional[str | int | float] = None,
 ) -> dict[str, Any]:
     """활동명/별칭 키워드로 영상 백업 위치를 찾는다.
 
-    예: ``keyword="가족초청예배"`` 또는 ``keyword="가초예"`` 와 같이 호출하면
+    ``year``/``category``/``limit`` 는 생략하거나 JSON ``null`` 로 두면
+    해당 조건 없이 검색한다.
     `storage_catalog` 에서 매칭되는 영상의 저장소(storage)/연도/월/활동명을
     돌려준다. 결과는 연도 내림차순으로 정렬된다.
     """
@@ -76,7 +75,7 @@ def find_video_backup_location(
 @mcp.tool()
 def search_by_description(
     keyword: Optional[str | int | float] = None,
-    limit: Optional[int] = None,
+    limit: Optional[str | int | float] = None,
 ) -> dict[str, Any]:
     """``storage_catalog.description`` 에서 장면/소스 키워드를 검색한다.
 
@@ -95,7 +94,7 @@ def list_storages() -> dict[str, Any]:
 
 
 @mcp.tool()
-def list_recent_activities(limit: Optional[int] = None) -> dict[str, Any]:
+def list_recent_activities(limit: Optional[str | int | float] = None) -> dict[str, Any]:
     """가장 최근에 등록된 활동(카탈로그) 목록을 반환한다."""
     return _list_recent_activities(limit=limit)
 

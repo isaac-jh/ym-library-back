@@ -11,24 +11,26 @@
 호출자는 DB 세션을 신경 쓸 필요가 없다(LLM 자동 함수 호출과의 호환성).
 """
 
-from __future__ import annotations
+# PEP 563(``from __future__ import annotations``) 을 쓰면 매개변수 주석이
+# 문자열로만 남아, google-genai AFC 가 ``isinstance(value, annotation)`` 할 때
+# ``TypeError: isinstance() arg 2 must be a type...`` 가 난다.
 
 import logging
 import unicodedata
 from typing import Any, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import asc, desc, or_
 
 from database import session_scope
 from models.storage_catalog import StorageCatalog
 
 logger = logging.getLogger(__name__)
 
-# google-genai AFC 는 호출 전에 인자를 ``isinstance`` 로 검사한다
-# (``_extra_utils.convert_if_exist_pydantic_model``). ``keyword: str`` 만 두면
-# 모델이 ``null``/숫자/배열 등을 넘길 때 **우리 함수에 들어오기 전에**
-# 예외가 나고, SDK 가 ``{'error': '...'}`` 만 모델에 돌려준다.
-_LlmKeyword = str | int | float | None
+# google-genai AFC 는 호출 전에 인자를 ``isinstance(value, annotation)`` 로
+# 검사한다. ``typing.Any`` 는 여기서 쓸 수 없고, ``keyword: str`` 만 두면
+# ``null``/숫자 등에서 실패한다. JSON 스칼라(문자열·숫자·null)는 아래 유니온으로
+# 받는다. ``null`` 은 ``None`` 이 되어 연도/카테고리 필터 없음으로 처리한다.
+_LlmOptionalScalar = str | int | float | None
 
 # LLM 응답 폭주를 막기 위한 하드 캡 (가이드라인: 25k chars 미만).
 _MAX_LIMIT = 50
@@ -147,11 +149,36 @@ def _catalog_to_dict(row: StorageCatalog) -> dict[str, Any]:
     }
 
 
+def _order_storage_catalog_year_month_id(query: Any) -> Any:
+    """연·월 내림차순 + id 내림차순 정렬. NULL 연·월 은 **맨 뒤**로 보낸다.
+
+    SQLAlchemy ``Column.desc().nullslast()`` 는 ``ORDER BY ... NULLS LAST`` 로
+    컴파일되는데, 운영 **MySQL** 은 해당 구문을 지원하지 않아 1064 오류가 난다.
+    ``(col IS NULL) ASC, col DESC`` 패턴으로 동일 의미를 맞춘다.
+    """
+    return query.order_by(
+        asc(StorageCatalog.year.is_(None)),
+        desc(StorageCatalog.year),
+        asc(StorageCatalog.month.is_(None)),
+        desc(StorageCatalog.month),
+        desc(StorageCatalog.id),
+    )
+
+
+def _order_storage_catalog_year_id(query: Any) -> Any:
+    """연도·id 내림차순. NULL 연도는 맨 뒤 (MySQL 호환)."""
+    return query.order_by(
+        asc(StorageCatalog.year.is_(None)),
+        desc(StorageCatalog.year),
+        desc(StorageCatalog.id),
+    )
+
+
 def find_video_backup_location(
-    keyword: _LlmKeyword = None,
-    year: Any = None,
-    category: _LlmKeyword = None,
-    limit: Any = None,
+    keyword: _LlmOptionalScalar = None,
+    year: _LlmOptionalScalar = None,
+    category: _LlmOptionalScalar = None,
+    limit: _LlmOptionalScalar = None,
 ) -> dict[str, Any]:
     """활동명 키워드로 영상 백업 위치를 조회한다.
 
@@ -170,10 +197,11 @@ def find_video_backup_location(
         keyword: 활동명/별칭 키워드. (예: ``"가족초청예배"``, ``"가초예"``)
             ``None``/빈 값이면 결과 없음. LLM 이 숫자 등으로 줄 수 있어
             ``str | int | float | None`` 을 받는다.
-        year: 특정 연도로 제한. LLM 이 ``float``/문자열로 줄 수 있어 내부에서
-            정수로 보정한다. 잘못된 값은 무시한다.
-        category: 카테고리 필터(예: ``"ACTIVITY"``).
-        limit: 최대 결과 수. 기본 20, 최대 50.
+        year: 연도 필터. **선택** — ``None``/JSON ``null``/생략이면 **모든 연도**.
+            숫자·문자열 연도는 정수로 보정한다.
+        category: 카테고리 필터(예: ``"ACTIVITY"``). **선택** —
+            ``None``/JSON ``null``/생략이면 **카테고리 무시**.
+        limit: 최대 결과 수. ``None``/JSON ``null``/생략이면 기본 20, 최대 50.
 
     Returns:
         ``{"keyword": str, "count": int, "items": [ ... ]}`` 형태의 dict.
@@ -202,11 +230,7 @@ def find_video_backup_location(
                 query = query.filter(StorageCatalog.category == cat_s)
 
             rows = (
-                query.order_by(
-                    StorageCatalog.year.desc().nullslast(),
-                    StorageCatalog.month.desc().nullslast(),
-                    StorageCatalog.id.desc(),
-                )
+                _order_storage_catalog_year_month_id(query)
                 .limit(capped)
                 .all()
             )
@@ -223,8 +247,8 @@ def find_video_backup_location(
 
 
 def search_by_description(
-    keyword: _LlmKeyword = None,
-    limit: Any = None,
+    keyword: _LlmOptionalScalar = None,
+    limit: _LlmOptionalScalar = None,
 ) -> dict[str, Any]:
     """``storage_catalog.description`` 에서 키워드를 검색한다.
 
@@ -237,7 +261,7 @@ def search_by_description(
     Args:
         keyword: ``storage_catalog.description`` 에 부분 일치시킬 값.
             ``str | int | float | None`` (AFC 인자 검사 통과용).
-        limit: 최대 결과 수. 기본 20, 최대 50.
+        limit: 최대 결과 수. ``None``/JSON ``null``/생략이면 기본 20.
 
     Returns:
         ``catalog_matches``: 매칭된 카탈로그 행 목록.
@@ -256,10 +280,10 @@ def search_by_description(
 
         with session_scope() as session:
             catalog_rows = (
-                session.query(StorageCatalog)
-                .filter(StorageCatalog.description.ilike(pattern))
-                .order_by(
-                    StorageCatalog.year.desc().nullslast(), StorageCatalog.id.desc()
+                _order_storage_catalog_year_id(
+                    session.query(StorageCatalog).filter(
+                        StorageCatalog.description.ilike(pattern)
+                    )
                 )
                 .limit(capped)
                 .all()
@@ -305,10 +329,13 @@ def list_storages() -> dict[str, Any]:
         return _failure_payload_for_llm({"count": 0, "storages": []})
 
 
-def list_recent_activities(limit: Any = None) -> dict[str, Any]:
+def list_recent_activities(limit: _LlmOptionalScalar = None) -> dict[str, Any]:
     """최근 등록된 활동(카탈로그) 목록을 반환한다.
 
     LLM 이 처음 대화를 시작할 때 컨텍스트를 잡기 위해 사용 가능.
+
+    Args:
+        limit: 최대 건수. ``None``/JSON ``null``/생략이면 기본 20.
     """
     try:
         capped = _clamp_limit(limit)
